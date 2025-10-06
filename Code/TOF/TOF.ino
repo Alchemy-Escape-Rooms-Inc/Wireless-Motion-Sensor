@@ -60,11 +60,11 @@ void reconnect() {
         Serial.print("Attempting MQTT connection...");
         if (client.connect("ESP8266Client_01")) {
             Serial.println("connected");
-            client.publish("MermaidsTale/ShipMotion3", "Connected!");
+            client.publish("MermaidsTale/ShipMotion2", "Connected!");
             client.subscribe("MermaidsTale/#");
 
             // Initial publish now that we're definitely connected
-            client.publish("MermaidsTale/ShipMotion3", "Searching");
+            client.publish("MermaidsTale/ShipMotion2", "Searching");
         } else {
             Serial.print("failed, rc=");
             Serial.print(client.state());
@@ -99,7 +99,7 @@ void loop() {
     if (isTriggered) {
         if (currentTime - triggerStartTime >= cooldownDuration) {
             Serial.println("Cooldown complete. Resuming search.");
-            client.publish("MermaidsTale/ShipMotion3", "Searching");
+            client.publish("MermaidsTale/ShipMotion2", "Searching");
             client.loop();
             isTriggered = false;
         }
@@ -112,11 +112,11 @@ void loop() {
 
     if (measure.RangeStatus != 4) {
         if (measure.RangeMilliMeter < TRIGGER_DISTANCE) {
-            Serial.println("MermaidsTale/ShipMotion3 triggered");
+            Serial.println("MermaidsTale/ShipMotion2 triggered");
             Serial.print("Distance (mm): ");
             Serial.println(measure.RangeMilliMeter);
 
-            client.publish("MermaidsTale/ShipMotion3", "triggered");
+            client.publish("MermaidsTale/ShipMotion2", "triggered");
             Serial.println("triggered");
             client.loop(); // Ensure message gets sent
             delay(500);
@@ -124,7 +124,7 @@ void loop() {
             isTriggered = true;
             triggerStartTime = currentTime;
 
-            client.publish("MermaidsTale/ShipMotion3", "Cooldown");
+            client.publish("MermaidsTale/ShipMotion2", "Cooldown");
             client.loop(); // Ensure message gets sent
         } else {
             Serial.println("Out of range");
