@@ -1,0 +1,8 @@
+Designator,Mid X,Mid Y,Layer,Rotation
+C1,1125mil,425mil,Top,270
+C2,1600mil,240mil,Top,0
+LED1,1299.95mil,249.95mil,Top,90
+R1,1375mil,425mil,Top,90
+R2,1125mil,250mil,Top,270
+SW1,2000.05mil,250mil,Top,270
+U2,1250mil,425mil,Top,90
