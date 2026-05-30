@@ -4,8 +4,8 @@
 #include <PubSubClient.h>
 
 // ==== Wi-Fi Credentials ====
-const char* ssid = "AlchemyGuest";
-const char* password = "VoodooVacation5601";
+const char* ssid = "QuantumLoop";
+const char* password = "Alchemy5601";
 
 // ==== MQTT Broker ====
 const char* mqtt_server = "10.1.10.115";
@@ -15,9 +15,7 @@ PubSubClient client(espClient);
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 #define TRIGGER_DISTANCE 200  // Threshold distance in mm
-const unsigned long cooldownDuration = 120000;  // 2 minutes
-unsigned long triggerStartTime = 0;
-bool isTriggered = false;
+bool isTriggered = false;  //one-shot latch; reset on MermaidsTale/GameStart = Triggered
 
 void setup_wifi() {
     delay(10);
@@ -46,13 +44,23 @@ void setup_wifi() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
+    char message[64];
+    if (length >= sizeof(message)) length = sizeof(message) - 1;
+    memcpy(message, payload, length);
+    message[length] = '\0';
+
     Serial.print("Message arrived [");
     Serial.print(topic);
     Serial.print("] ");
-    for (unsigned int i = 0; i < length; i++) {
-        Serial.print((char)payload[i]);
+    Serial.println(message);
+
+    if (strcmp(topic, "MermaidsTale/GameStart") == 0 && strcmp(message, "Triggered") == 0) {
+        if (isTriggered) {
+            Serial.println("GameStart received — re-arming motion sensor");
+            client.publish("MermaidsTale/ShipMotion2", "Searching");
+        }
+        isTriggered = false;
     }
-    Serial.println();
 }
 
 void reconnect() {
@@ -94,15 +102,7 @@ void loop() {
     }
     client.loop();
 
-    unsigned long currentTime = millis();
-
     if (isTriggered) {
-        if (currentTime - triggerStartTime >= cooldownDuration) {
-            Serial.println("Cooldown complete. Resuming search.");
-            client.publish("MermaidsTale/ShipMotion2", "Searching");
-            client.loop();
-            isTriggered = false;
-        }
         delay(100);
         return;
     }
@@ -117,15 +117,10 @@ void loop() {
             Serial.println(measure.RangeMilliMeter);
 
             client.publish("MermaidsTale/ShipMotion2", "triggered");
-            Serial.println("triggered");
-            client.loop(); // Ensure message gets sent
-            delay(500);
+            client.publish("MermaidsTale/StarChart/MotionSensor", "Triggered");
+            client.loop();
 
             isTriggered = true;
-            triggerStartTime = currentTime;
-
-            client.publish("MermaidsTale/ShipMotion2", "Cooldown");
-            client.loop(); // Ensure message gets sent
         } else {
             Serial.println("Out of range");
         }
