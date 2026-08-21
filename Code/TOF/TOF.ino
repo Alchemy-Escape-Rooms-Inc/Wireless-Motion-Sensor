@@ -17,7 +17,7 @@
 
 #include <ESP8266WiFi.h>
 #include <Wire.h>
-#include <adafruit_vl53l0x.h>
+#include <Adafruit_VL53L0X.h>
 #include <PubSubClient.h>
 
 // ==== Wi-Fi Credentials ====
