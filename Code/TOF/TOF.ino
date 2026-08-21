@@ -1,21 +1,46 @@
+// =============================================================================
+//  Alyssa Front Desk — Wireless Motion Sensor
+//  Board: ESP8266 + VL53L0X time-of-flight distance sensor (battery shield)
+//
+//  Purpose: sits at the front desk and tells Alyssa (our virtual receptionist)
+//  when a customer walks up. Publishes ONE MQTT message per arrival:
+//
+//      topic:   Alyssa/FrontDesk/message
+//      payload: MotionDetected
+//
+//  Lifecycle / health chatter goes on a SEPARATE topic so that anything
+//  listening for arrivals never fires on a boot or cooldown message:
+//
+//      topic:   Alyssa/FrontDesk/status
+//      payload: Connected | Searching | Cooldown
+// =============================================================================
+
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <adafruit_vl53l0x.h>
 #include <PubSubClient.h>
 
 // ==== Wi-Fi Credentials ====
-const char* ssid = "AlchemyGuest";
+const char* ssid     = "AlchemyGuest";
 const char* password = "VoodooVacation5601";
 
 // ==== MQTT Broker ====
 const char* mqtt_server = "10.1.10.115";
+const char* mqtt_client_id = "AlyssaFrontDeskSensor";
+
+// ==== MQTT Topics (keep in sync with the AI Character program) ====
+const char* TOPIC_MESSAGE = "Alyssa/FrontDesk/message";   // arrivals only
+const char* TOPIC_STATUS  = "Alyssa/FrontDesk/status";    // health / lifecycle
+const char* TOPIC_COMMAND = "Alyssa/FrontDesk/command";   // optional: RESET / ARM
+
+const char* PAYLOAD_MOTION = "MotionDetected";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
-#define TRIGGER_DISTANCE 200  // Threshold distance in mm
-const unsigned long cooldownDuration = 120000;  // 2 minutes
+#define TRIGGER_DISTANCE 200                    // mm — closer than this = someone is at the desk
+const unsigned long cooldownDuration = 120000;  // 2 min before Alyssa can be pinged again
 unsigned long triggerStartTime = 0;
 bool isTriggered = false;
 
@@ -45,26 +70,35 @@ void setup_wifi() {
     }
 }
 
+// Optional remote control: "RESET" or "ARM" on Alyssa/FrontDesk/command ends the
+// cooldown early so the sensor is ready for the next guest.
 void callback(char* topic, byte* payload, unsigned int length) {
+    String msg;
+    for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
+
     Serial.print("Message arrived [");
     Serial.print(topic);
     Serial.print("] ");
-    for (unsigned int i = 0; i < length; i++) {
-        Serial.print((char)payload[i]);
+    Serial.println(msg);
+
+    if (strcmp(topic, TOPIC_COMMAND) == 0 && (msg == "RESET" || msg == "ARM")) {
+        isTriggered = false;
+        client.publish(TOPIC_STATUS, "Searching");
+        Serial.println("Cooldown cleared by command. Searching.");
     }
-    Serial.println();
 }
 
 void reconnect() {
     while (!client.connected()) {
         Serial.print("Attempting MQTT connection...");
-        if (client.connect("ESP8266Client_01")) {
+        if (client.connect(mqtt_client_id)) {
             Serial.println("connected");
-            client.publish("MermaidsTale/ShipMotion2", "Connected!");
-            client.subscribe("MermaidsTale/#");
+            client.subscribe(TOPIC_COMMAND);
 
-            // Initial publish now that we're definitely connected
-            client.publish("MermaidsTale/ShipMotion2", "Searching");
+            // Health only — NEVER publish to TOPIC_MESSAGE here, or Alyssa
+            // would greet an empty lobby every time the sensor reboots.
+            client.publish(TOPIC_STATUS, "Connected");
+            client.publish(TOPIC_STATUS, "Searching");
         } else {
             Serial.print("failed, rc=");
             Serial.print(client.state());
@@ -99,7 +133,7 @@ void loop() {
     if (isTriggered) {
         if (currentTime - triggerStartTime >= cooldownDuration) {
             Serial.println("Cooldown complete. Resuming search.");
-            client.publish("MermaidsTale/ShipMotion2", "Searching");
+            client.publish(TOPIC_STATUS, "Searching");
             client.loop();
             isTriggered = false;
         }
@@ -110,25 +144,19 @@ void loop() {
     VL53L0X_RangingMeasurementData_t measure;
     lox.rangingTest(&measure, false);
 
-    if (measure.RangeStatus != 4) {
-        if (measure.RangeMilliMeter < TRIGGER_DISTANCE) {
-            Serial.println("MermaidsTale/ShipMotion2 triggered");
-            Serial.print("Distance (mm): ");
-            Serial.println(measure.RangeMilliMeter);
+    if (measure.RangeStatus != 4 && measure.RangeMilliMeter < TRIGGER_DISTANCE) {
+        Serial.print("Customer detected at front desk. Distance (mm): ");
+        Serial.println(measure.RangeMilliMeter);
 
-            client.publish("MermaidsTale/ShipMotion2", "triggered");
-            Serial.println("triggered");
-            client.loop(); // Ensure message gets sent
-            delay(500);
+        client.publish(TOPIC_MESSAGE, PAYLOAD_MOTION);   // <-- the one message Alyssa acts on
+        client.loop(); // Ensure message gets sent
+        delay(500);
 
-            isTriggered = true;
-            triggerStartTime = currentTime;
+        isTriggered = true;
+        triggerStartTime = currentTime;
 
-            client.publish("MermaidsTale/ShipMotion2", "Cooldown");
-            client.loop(); // Ensure message gets sent
-        } else {
-            Serial.println("Out of range");
-        }
+        client.publish(TOPIC_STATUS, "Cooldown");
+        client.loop();
     } else {
         Serial.println("Out of range");
     }
