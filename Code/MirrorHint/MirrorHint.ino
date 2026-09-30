@@ -7,8 +7,8 @@
 //      MermaidsTale/DeskDrawer/mirrorhint
 //  and pull OUTPUT_PIN low.
 //
-//  PINS (verified by I2C scan 2026-08-24 — the physical SDA/SCL wires are
-//  swapped vs the silk labels; the sensor ACKs at 0x29 ONLY on SDA=5/SCL=4):
+//  PINS (wires were originally crossed;
+//  rewired 2026-08-24 to match silk: SDA=GPIO4, SCL=GPIO5):
 //      VL53L0X SDA -> GPIO5  (board label D1)
 //      VL53L0X SCL -> GPIO4  (board label D2)
 //      Output      -> GPIO12 (board label D6)
@@ -29,8 +29,8 @@ const int   MQTT_PORT   = 1883;
 const char* MQTT_TOPIC  = "MermaidsTale/DeskDrawer/mirrorhint";
 
 // ==== Pins (raw GPIO numbers) ====
-#define SDA_PIN    5    // GPIO5 = D1  <-- verified by scan
-#define SCL_PIN    4    // GPIO4 = D2  <-- verified by scan
+#define SDA_PIN    4    // GPIO4 = D2 (matches board silk "4 SDA")
+#define SCL_PIN    5    // GPIO5 = D1 (matches board silk "5 SCL")
 #define OUTPUT_PIN 12   // GPIO12 = D6
 
 // ==== Sensor settings ====
